@@ -28,10 +28,18 @@ mask = ~np.isnan(chlor_a)
 chlor_a = chlor_a[mask]
 time = time[mask]
 
+# Удаление выбросов
+critical_value = 2.65
+window_size_for_outliers = 3
+for i in range(len(chlor_a)):
+    if chlor_a[i] > critical_value:
+        chlor_a[i] = sum(chlor_a[i - window_size_for_outliers//2:i + window_size_for_outliers//2 + 1]) / \
+                     window_size_for_outliers
+
 # Удаление сезонности - скользящее среднее
-window_size = 12
+window_size = 9
 chlor_a_pandas = pd.Series(chlor_a)
-windows = chlor_a_pandas.rolling(window_size)
+windows = chlor_a_pandas.rolling(window=window_size)
 chlor_a_pandas_av = windows.mean()
 moving_av = chlor_a_pandas_av.tolist()
 
@@ -41,34 +49,11 @@ X = np.vstack([time_num, np.ones(len(time_num))]).T
 beta = np.linalg.inv(X.T @ X) @ (X.T @ chlor_a)  # X.T @ X @ beta = X.T @ y
 trend = beta[0] * time_num + beta[1]  # y = k * x + b
 
-# Полином второго порядка
-poly2_coeffs = np.polyfit(time_num, chlor_a, 2)
-poly2_trend = np.polyval(poly2_coeffs, time_num)
-
-# Полином третьего порядка
-poly3_coeffs = np.polyfit(time_num, chlor_a, 3)
-poly3_trend = np.polyval(poly3_coeffs, time_num)
-
-
-# Коэффициенты детерминации
-def returnR(poly):
-    corr_matrix = np.corrcoef(chlor_a, poly)
-    corr = corr_matrix[0, 1]
-    return corr ** 2
-
-
-print("Коэффициенты детерминации:")
-print("1-ой степени: ", returnR(trend))
-print("2-ой степени: ", returnR(poly2_trend))
-print("3-ей степени: ", returnR(poly3_trend))
-
 # Построение графика
 plt.figure(figsize=(10, 5))
 plt.plot(time, chlor_a, marker=',', linestyle='-', color='gray', alpha=0.5, label='chlorophyll A')
 plt.plot(time, moving_av, marker=',', linestyle='-', color='green', label='moving av (without season cycle)')
 plt.plot(time, trend, color='red', linewidth=2.5, label='Trend Line')
-plt.plot(time, poly2_trend, color='blue', linestyle='--', linewidth=2, label='2nd Order Polynomial Trend line')
-plt.plot(time, poly3_trend, color='purple', linestyle='--', linewidth=2, label='3nd Order Polynomial Trend line')
 
 # Настройка графика
 plt.title('Chlorophyll-a Concentration Over Time')
