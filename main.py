@@ -6,9 +6,13 @@ from datetime import datetime, timedelta
 import matplotlib.dates as mdates
 import pandas as pd
 from sklearn.metrics import mean_squared_error
+from statsmodels.graphics.gofplots import qqplot
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.arima.model import ARIMA
+import warnings
+warnings.filterwarnings("ignore")
+
 
 filename = "omi_health_chl_baltic_oceancolour_area_averaged_mean_19970901_P20230807.nc"
 dataset = Dataset(filename, 'r')
@@ -71,13 +75,15 @@ result = adfuller(train_chlor_a_pandas_diff)
 # print(result)
 
 # порядки AR и MA (нахождение p и q)
-plot_acf(train_chlor_a_pandas_diff)
-plot_pacf(train_chlor_a_pandas_diff)
+# plot_acf(train_chlor_a_pandas_diff)
+# plot_pacf(train_chlor_a_pandas_diff)
 
 '''d = 1   # порядок интегрирования (I). Он равен 1, тк ряд приведён к стационарному через одну дифференциацию
 
-best_pdq = None
+best_pdq_rmse = None
+best_pdq_AIC = None
 min_rmse = float('inf')
+min_AIC = float('inf')
 
 for p in range(1, 11):
     for q in range(1, 11):
@@ -87,23 +93,32 @@ for p in range(1, 11):
             pred = model_ARIMA.predict(start=len(train_chlor_a), end=len(train_chlor_a) + len(test_chlor_a) - 1)
             rmse_ARIMA = np.sqrt(mean_squared_error(test_chlor_a, pred))
             if rmse_ARIMA < min_rmse:
-                best_pdq = (p, d, q)
+                best_pdq_rmse = (p, d, q)
                 min_rmse = rmse_ARIMA
+            if model_ARIMA.aic < min_AIC:
+                best_pdq_AIC = (p, d, q)
+                min_AIC = model_ARIMA.aic
         except:
             continue
 
-print(f"Best pdq: {best_pdq}, Min RMSE: {min_rmse}")'''
+print(f"RMSE: Best pdq: {best_pdq_rmse}, Min RMSE: {min_rmse}")
+print(f"AIC: Best pdq: {best_pdq_AIC}, Min AIC: {min_AIC}")'''
 
-p, d, q = 8, 1, 10  # best_pdq
+p, d, q = 8, 1, 10  # best_pdq from RMSE and AIC
 
 model_ARIMA = ARIMA(train_chlor_a, order=(p, d, q)).fit()
 residuals = model_ARIMA.resid[1:]
         
-fig, ax = plt.subplots(1, 2)
+fig, ax = plt.subplots(1, 3, figsize=(10, 5))
 
-# Построение графика остаточных значений и их плотности (проверка на белый шум)
+# Построение графика остаточных значений, их плотности и
 pd.Series(residuals).plot(label="Residuals", ax=ax[0])
 pd.Series(residuals).plot(label="Density", kind='kde', ax=ax[1])
+qqplot(residuals, line='s', ax=ax[2])
+plt.subplots_adjust(wspace=0.4)
+ax[0].set_title("Residuals")
+ax[1].set_title("Density")
+ax[2].set_title("QQplot")
 
 # Построение графика
 plt.figure(figsize=(10, 5))
@@ -112,10 +127,10 @@ plt.plot(time, moving_av, marker=',', linestyle='-', color='green', label='movin
 plt.plot(time, trend, color='red', linewidth=2.5, label='Trend Line')
 train_ARIMA = model_ARIMA.predict(start=1, end=len(train_chlor_a)-1)
 pred_ARIMA = model_ARIMA.predict(start=len(train_chlor_a), end=len(train_chlor_a) + len(test_chlor_a) - 1)
-rmse_ARIMA = np.sqrt(mean_squared_error(test_chlor_a, pred_ARIMA))
-rmse_trend = np.sqrt(mean_squared_error(chlor_a, trend))
-print(f"RMSE for ARIMA({p}, {d}, {q}) : {rmse_ARIMA}")
-print(f"RMSE for Trend line: {rmse_trend}")
+# rmse_ARIMA = np.sqrt(mean_squared_error(test_chlor_a, pred_ARIMA))
+# rmse_trend = np.sqrt(mean_squared_error(chlor_a, trend))
+# print(f"RMSE for ARIMA({p}, {d}, {q}) : {rmse_ARIMA}")
+# print(f"RMSE for Trend line: {rmse_trend}")
 plt.plot(time[1:len(train_chlor_a)], train_ARIMA, color='blue', linestyle='-', linewidth=1, label='ARIMA train')
 plt.plot(time[len(train_chlor_a):], pred_ARIMA, color='blue', linestyle='--', linewidth=1, label='ARIMA test')
 
