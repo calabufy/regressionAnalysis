@@ -75,8 +75,8 @@ result = adfuller(train_chlor_a_pandas_diff)
 # print(result)
 
 # порядки AR и MA (нахождение p и q)
-# plot_acf(train_chlor_a_pandas_diff)
-# plot_pacf(train_chlor_a_pandas_diff)
+plot_acf(train_chlor_a_pandas_diff)
+plot_pacf(train_chlor_a_pandas_diff)
 
 '''d = 1   # порядок интегрирования (I). Он равен 1, тк ряд приведён к стационарному через одну дифференциацию
 
@@ -111,7 +111,7 @@ residuals = model_ARIMA.resid[1:]
         
 fig, ax = plt.subplots(1, 3, figsize=(10, 5))
 
-# Построение графика остаточных значений, их плотности и
+# Построение графика остаточных значений, их плотности и qqplot
 pd.Series(residuals).plot(label="Residuals", ax=ax[0])
 pd.Series(residuals).plot(label="Density", kind='kde', ax=ax[1])
 qqplot(residuals, line='s', ax=ax[2])
@@ -127,10 +127,10 @@ plt.plot(time, moving_av, marker=',', linestyle='-', color='green', label='movin
 plt.plot(time, trend, color='red', linewidth=2.5, label='Trend Line')
 train_ARIMA = model_ARIMA.predict(start=1, end=len(train_chlor_a)-1)
 pred_ARIMA = model_ARIMA.predict(start=len(train_chlor_a), end=len(train_chlor_a) + len(test_chlor_a) - 1)
-# rmse_ARIMA = np.sqrt(mean_squared_error(test_chlor_a, pred_ARIMA))
-# rmse_trend = np.sqrt(mean_squared_error(chlor_a, trend))
-# print(f"RMSE for ARIMA({p}, {d}, {q}) : {rmse_ARIMA}")
-# print(f"RMSE for Trend line: {rmse_trend}")
+rmse_ARIMA = np.sqrt(mean_squared_error(test_chlor_a, pred_ARIMA))
+rmse_trend = np.sqrt(mean_squared_error(chlor_a, trend))
+print(f"RMSE for ARIMA({p}, {d}, {q}) : {rmse_ARIMA}")
+print(f"RMSE for Trend line: {rmse_trend}")
 plt.plot(time[1:len(train_chlor_a)], train_ARIMA, color='blue', linestyle='-', linewidth=1, label='ARIMA train')
 plt.plot(time[len(train_chlor_a):], pred_ARIMA, color='blue', linestyle='--', linewidth=1, label='ARIMA test')
 
