@@ -1,8 +1,6 @@
 import numpy as np
 import numpy.ma as ma
 import matplotlib.pyplot as plt
-from netCDF4 import Dataset
-from datetime import datetime, timedelta
 import matplotlib.dates as mdates
 import pandas as pd
 from sklearn.metrics import mean_squared_error
@@ -10,65 +8,25 @@ from statsmodels.graphics.gofplots import qqplot
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.arima.model import ARIMA
+from scipy.stats import spearmanr
 import warnings
 warnings.filterwarnings("ignore")
 
 
 # Пути к файлам
-filename_chlor_A = "datasets/omi_health_chl_baltic_oceancolour_area_averaged_mean_19970901_P20230807.nc"
-filename_temperature_anomaly = "datasets/omi_climate_sst_bal_area_averaged_anomalies_2022_P20230509_R19932014.nc"
+filename = "datasets/sharkweb_data.xlsx"
+worksheet_name = "KOVIKSUDDE"
 
-# Загрузка данных из NetCDF файлов
-dataset1 = Dataset(filename_chlor_A, 'r')
-dataset2 = Dataset(filename_temperature_anomaly, 'r')
+dataset = pd.read_excel(filename, sheet_name=worksheet_name)
+
 
 # Извлечение переменных
-time = dataset1.variables['time'][:]
-chlor_a = dataset1.variables['chlor_a'][:]
-time2 = dataset2.variables['time'][:]
-temp_anomaly = dataset2.variables['sst_anomaly'][:]
-
-# Закрытие файлов
-dataset1.close()
-dataset2.close()
-
-# Преобразование времени
-start_date = datetime(1950, 1, 1)
-time = np.array([start_date + timedelta(days=int(day)) for day in time])
-time2 = np.array([start_date + timedelta(days=int(day)) for day in time2])
-
-# Оставить только год и месяц
-time = np.array([datetime(t.year, t.month, 1) for t in time])
-time2 = np.array([datetime(t.year, t.month, 1) for t in time2])
-
-# Создание словарей для данных
-chlor_dict = {time: value for time, value in zip(time, chlor_a)}
-temp_dict = {time: value for time, value in zip(time2, temp_anomaly)}
-
-# Проверка на маскированные значения
-if ma.is_masked(chlor_a):
-    chlor_a = chlor_a.filled(np.nan)
-
-# Создание маски для пропущенных значений (предполагается, что они представлены как NaN)
-mask = ~np.isnan(chlor_a)
-
-# Применение маски к обоим массивам
-chlor_a = chlor_a[mask]
-time = time[mask]
-
-# Найти общие даты
-common_dates = sorted(set(time).intersection(set(time2)))
-
-# Создание списков для общих данных
-filtered_chlor_a = [chlor_dict[date] for date in common_dates]
-filtered_temp_anomaly = [temp_dict[date] for date in common_dates]
-
-# Преобразование общих данных в numpy массивы
-chlor_a = np.array(filtered_chlor_a)
-temp_anomaly = np.array(filtered_temp_anomaly)
+time = dataset['Sampling date (start)']
+chlor_a = dataset['Value']
+air_temp = dataset['Air temperature (C)']
 
 # Удаление выбросов
-critical_value = 2.65
+critical_value = 25
 window_size_for_outliers = 5
 for i in range(len(chlor_a)):
     if chlor_a[i] > critical_value:
@@ -76,7 +34,7 @@ for i in range(len(chlor_a)):
                      window_size_for_outliers
 
 # Удаление сезонности - скользящее среднее
-window_size = 9
+window_size = 12
 chlor_a_pandas = pd.Series(chlor_a)
 windows = chlor_a_pandas.rolling(window=window_size)
 chlor_a_pandas_av = windows.mean()
@@ -145,6 +103,19 @@ p, d, q = 8, 1, 10  # best_pdq from RMSE and AIC
 
 model_ARIMA = ARIMA(train_chlor_a, order=(p, d, q)).fit()
 residuals = model_ARIMA.resid[1:]
+
+correlation = np.corrcoef(chlor_a, air_temp)[0, 1]
+print(f"Коэффициент корреляции Пирсона: {correlation}")  # проверка на линейную зависимость
+
+# Значение коэффициента Пирсона ~ 0.124, что указывает на слабую линейную положительную зависимость
+
+corr, p_value = spearmanr(chlor_a, air_temp)
+print(f"Коэффициент корреляции Спирмена: {corr}")  # проверка на монотонную зависимость
+print(f"p-value: {p_value}")
+
+# Значение коэффициента Спирмена ~ 0.096, что указывает на слабую монотонную зависимость
+# P-value выше уровня значимости, поэтому нельзя отвергать нулевую гипотезу, однако значения
+# коэффицентов указывает на то, что при больших данных зависимость может быть случайной
         
 fig, ax = plt.subplots(1, 3, figsize=(10, 5))
 
@@ -159,22 +130,22 @@ ax[2].set_title("QQplot")
 
 # Построение графика
 plt.figure(figsize=(12, 6))
-plt.subplot(2, 1, 1)
+#plt.subplot(2, 1, 1)
 plt.plot(time, chlor_a, marker=',', linestyle='-', color='gray', alpha=0.5, label='chlorophyll A')
-# plt.plot(time, moving_av, marker=',', linestyle='-', color='green', label='moving av (without season cycle)')
-# plt.plot(time, trend, color='red', linewidth=2.5, label='Trend Line')
+plt.plot(time, moving_av, marker=',', linestyle='-', color='green', label='moving av (without season cycle)')
+plt.plot(time, trend, color='red', linewidth=2.5, label='Trend Line')
 train_ARIMA = model_ARIMA.predict(start=1, end=len(train_chlor_a)-1)
 pred_ARIMA = model_ARIMA.predict(start=len(train_chlor_a), end=len(train_chlor_a) + len(test_chlor_a) - 1)
 rmse_ARIMA = np.sqrt(mean_squared_error(test_chlor_a, pred_ARIMA))
 rmse_trend = np.sqrt(mean_squared_error(chlor_a, trend))
 print(f"RMSE for ARIMA({p}, {d}, {q}) : {rmse_ARIMA}")
 print(f"RMSE for Trend line: {rmse_trend}")
-plt.plot(time[1:len(train_chlor_a)], train_ARIMA, color='blue', linestyle='-', linewidth=1, label='ARIMA train')
-plt.plot(time[len(train_chlor_a):], pred_ARIMA, color='blue', linestyle='--', linewidth=1, label='ARIMA test')
+# plt.plot(time[1:len(train_chlor_a)], train_ARIMA, color='blue', linestyle='-', linewidth=1, label='ARIMA train')
+# plt.plot(time[len(train_chlor_a):], pred_ARIMA, color='blue', linestyle='--', linewidth=1, label='ARIMA test')
 
 # Настройка графика
 plt.title('Chlorophyll-a Concentration Over Time')
-plt.ylabel('Chlorophyll-a Concentration')
+plt.ylabel('Chlorophyll-a Concentration (ug/l)')
 plt.grid(True)
 plt.legend()
 
@@ -186,8 +157,8 @@ ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
 # Поворот меток оси X для лучшей читаемости
 plt.xticks(rotation=45)
 
-plt.subplot(2, 1, 2)
-plt.plot(time, temp_anomaly, label='Temperature Anomaly', color='orange')
+'''plt.subplot(2, 1, 2)
+plt.plot(time, air_temp, label='Temperature Anomaly', color='orange')
 plt.xlabel('Date')
 plt.ylabel('Temperature Anomaly')
 plt.legend()
@@ -198,7 +169,7 @@ ax = plt.gca()
 ax.xaxis.set_major_locator(mdates.YearLocator())
 ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
 
-plt.xticks(rotation=45)
+plt.xticks(rotation=30)'''
 
 # Отображение графика
 plt.show()
