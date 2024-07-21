@@ -7,6 +7,7 @@ import numpy.ma as ma
 import matplotlib.dates as mdates
 from sklearn.metrics import mean_squared_error
 
+
 class Perceptron:
     def __init__(self, input_size, learning_rate=0.001):
         self.weights = np.zeros(input_size + 1)  # Включаем смещение
@@ -23,6 +24,15 @@ class Perceptron:
                 error = target - prediction
                 self.weights[1:] += self.learning_rate * error * xi
                 self.weights[0] += self.learning_rate * error
+
+
+def create_features(data, window_size):
+    """Функция создания признаков и целевой переменной"""
+    X, y = [], []
+    for i in range(len(data) - window_size):
+        X.append(data[i:i + window_size])  # X - набор признаков от data[i] длинной window_size
+        y.append(data[i + window_size])  # y - значение, которое необходимо предсказать по набору признаков X
+    return np.array(X), np.array(y)
 
 
 if __name__ == "__main__":
@@ -49,16 +59,8 @@ if __name__ == "__main__":
     windows = chlor_a_pandas.rolling(window=window_size)
     moving_av = windows.mean().dropna().tolist()
 
-    def create_features(data, window_size):
-        """Функция создания признаков и целевой переменной"""
-        X, y = [], []
-        for i in range(len(data) - window_size):
-            X.append(data[i:i + window_size])
-            y.append(data[i + window_size])
-        return np.array(X), np.array(y)
-
     # Создание признаков и целевой переменной
-    X, y = create_features(moving_av, window_size)
+    X, y = create_features(chlor_a, window_size)
 
     # Разделение данных на обучающую и тестовую выборки
     train_size = -30
@@ -69,15 +71,16 @@ if __name__ == "__main__":
     perceptron.fit(X_train, y_train, epochs=100)
 
     pred = np.array([perceptron.predict(x) for x in X_test])
-    mse = mean_squared_error(y_test, pred)
-    print(f"Mean Squared Error: {mse}")
+    rmse = np.sqrt(mean_squared_error(y_test, pred))
+    print(f"RMSE for Perceptron: {rmse}")
 
     start_date = datetime(1950, 1, 1)
     time = np.array([start_date + timedelta(days=int(day)) for day in time])
 
     plt.figure(figsize=(10, 5))
     plt.plot(time, chlor_a, marker=',', linestyle='-', color='gray', alpha=0.5, label='chlorophyll A')
-    plt.plot(time[window_size-1:], moving_av, marker=',', linestyle='-', color='green', label='moving av (without season cycle)')
+    plt.plot(time[window_size - 1:], moving_av, marker=',', linestyle='-', color='green',
+             label='moving av (without season cycle)')
     plt.plot(time[train_size:], pred, marker=',', linestyle='--', color='blue', label='Predicted Values')
     plt.title('Chlorophyll-a Concentration Over Time')
     plt.ylabel('Chlorophyll-a Concentration')
