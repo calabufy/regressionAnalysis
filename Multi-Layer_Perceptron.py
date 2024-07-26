@@ -3,15 +3,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from keras import Sequential
-from keras.src.initializers import HeNormal
-from keras.src.layers import Dense, Dropout
-from keras.src.optimizers import SGD, RMSprop
+from keras.src.layers import Dense
+from keras.src.optimizers import Adam
 from netCDF4 import Dataset
 from numpy import ma
 from sklearn.metrics import mean_squared_error
 import matplotlib.dates as mdates
-from tensorflow import sqrt, reduce_mean, square
-from random import seed
 
 
 # Функция для создания признаков и целевой переменной
@@ -54,30 +51,22 @@ train_size = -30
 X_train, X_test = X[:train_size], X[train_size:]
 y_train, y_test = y[:train_size], y[train_size:]
 
-seed(100)  # Определение сида генерации случайных чисел
-
 # Определение модели
 model = Sequential([
-    Dense(window_size),  # Входной слой с 9 нейронами
-    Dense(3, activation='relu', kernel_initializer=HeNormal()),  # Полносвязный слой с 3мя скрытыми нейронами
-    Dense(1, activation='relu', kernel_initializer=HeNormal())  # Выходной слой с 1 нейроном
+    Dense(window_size, input_shape=(window_size,)),  # Входной слой с 9 нейронами
+    Dense(16, activation='relu'),  # Полносвязный слой с 16 скрытыми нейронами
+    Dense(1)  # Выходной слой с 1 нейроном
 ])
 # activation - активационная функция
-# kernel_intializer - определение весов, HeNormal - веса имеют нормальное распределение
-
-
-# Определение функции потерь (rmse)
-def rmse(y, y_pred):
-    return sqrt(reduce_mean(square(y - y_pred)))
 
 
 # Компиляция модели
-model.compile(optimizer='adam', loss=rmse)
+model.compile(optimizer=Adam(learning_rate=0.001), loss='mean_squared_error')
 # optimizer - способ обновления весов модели
 # loss - функция потерь
 
 # Обучение модели
-model.fit(X_train, y_train, epochs=100, batch_size=len(X_train))
+model.fit(X_train, y_train, epochs=100, batch_size=150)
 # epohs - количество эпох обучения
 # batch_size - количество примеров на одной эпохе
 
