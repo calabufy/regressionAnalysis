@@ -66,7 +66,7 @@ model.compile(optimizer=Adam(learning_rate=0.001), loss='mean_squared_error')
 # loss - функция потерь
 
 # Обучение модели
-model.fit(X_train, y_train, epochs=100, batch_size=150)
+history = model.fit(X_train, y_train, epochs=100, batch_size=150)
 # epohs - количество эпох обучения
 # batch_size - количество примеров на одной эпохе
 
@@ -95,6 +95,14 @@ ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
 
 # Поворот меток оси X для лучшей читаемости
 plt.xticks(rotation=45)
+
+plt.figure(figsize=(5, 5))
+plt.plot(history.history['loss'], label='Training Loss')
+plt.title('Training Loss')
+plt.xlabel('Epochs')
+plt.ylabel('Loss')
+plt.legend()
+plt.grid(True)
 
 # Отображение графика
 plt.show()
